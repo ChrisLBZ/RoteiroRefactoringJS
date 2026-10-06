@@ -8,41 +8,55 @@ function formatarMoeda(valor) {
   }).format(valor / 100);
 }
 
-function getPeca(pecas, apre) {
-  return pecas[apre.id];
+
+// Repositório responsável pelo acesso aos dados das peças
+
+class Repositorio {
+
+  constructor() {
+    this.pecas = JSON.parse(readFileSync('./pecas.json'));
+  }
+
+  getPeca(apre) {
+    return this.pecas[apre.id];
+  }
 }
 
 
-// Classe responsável pelos cálculos da fatura
+// Serviço responsável pelos cálculos da fatura
 
 class ServicoCalculoFatura {
 
-  calcularCredito(pecas, apre) {
+  constructor(repo) {
+    this.repo = repo;
+  }
+
+  calcularCredito(apre) {
     let creditos = 0;
 
     creditos += Math.max(apre.audiencia - 30, 0);
 
-    if (getPeca(pecas, apre).tipo === "comedia") {
+    if (this.repo.getPeca(apre).tipo === "comedia") {
       creditos += Math.floor(apre.audiencia / 5);
     }
 
     return creditos;
   }
 
-  calcularTotalCreditos(pecas, apresentacoes) {
+  calcularTotalCreditos(apresentacoes) {
     let creditos = 0;
 
     for (let apre of apresentacoes) {
-      creditos += this.calcularCredito(pecas, apre);
+      creditos += this.calcularCredito(apre);
     }
 
     return creditos;
   }
 
-  calcularTotalApresentacao(pecas, apre) {
+  calcularTotalApresentacao(apre) {
     let total = 0;
 
-    switch (getPeca(pecas, apre).tipo) {
+    switch (this.repo.getPeca(apre).tipo) {
 
       case "tragedia":
         total = 40000;
@@ -66,18 +80,18 @@ class ServicoCalculoFatura {
 
       default:
         throw new Error(
-          `Peça desconhecida: ${getPeca(pecas, apre).tipo}`
+          `Peça desconhecida: ${this.repo.getPeca(apre).tipo}`
         );
     }
 
     return total;
   }
 
-  calcularTotalFatura(pecas, apresentacoes) {
+  calcularTotalFatura(apresentacoes) {
     let totalFatura = 0;
 
     for (let apre of apresentacoes) {
-      totalFatura += this.calcularTotalApresentacao(pecas, apre);
+      totalFatura += this.calcularTotalApresentacao(apre);
     }
 
     return totalFatura;
@@ -87,26 +101,26 @@ class ServicoCalculoFatura {
 
 // Geração da fatura em String
 
-function gerarFaturaStr(fatura, pecas, calc) {
+function gerarFaturaStr(fatura, calc) {
   let faturaStr = `Fatura ${fatura.cliente}\n`;
 
   for (let apre of fatura.apresentacoes) {
     faturaStr +=
-      `  ${getPeca(pecas, apre).nome}: ` +
+      `  ${calc.repo.getPeca(apre).nome}: ` +
       `${formatarMoeda(
-        calc.calcularTotalApresentacao(pecas, apre)
+        calc.calcularTotalApresentacao(apre)
       )} ` +
       `(${apre.audiencia} assentos)\n`;
   }
 
   faturaStr +=
     `Valor total: ${formatarMoeda(
-      calc.calcularTotalFatura(pecas, fatura.apresentacoes)
+      calc.calcularTotalFatura(fatura.apresentacoes)
     )}\n`;
 
   faturaStr +=
     `Créditos acumulados: ${
-      calc.calcularTotalCreditos(pecas, fatura.apresentacoes)
+      calc.calcularTotalCreditos(fatura.apresentacoes)
     }\n`;
 
   return faturaStr;
@@ -114,10 +128,10 @@ function gerarFaturaStr(fatura, pecas, calc) {
 
 
 // Geração da fatura em HTML
-// Corpo comentado temporariamente
+// Temporariamente comentada
 
 /*
-function gerarFaturaHTML(fatura, pecas, calc) {
+function gerarFaturaHTML(fatura, calc) {
   let faturaHTML = `<html>\n`;
 
   faturaHTML += `<p> Fatura ${fatura.cliente} </p>\n`;
@@ -125,9 +139,9 @@ function gerarFaturaHTML(fatura, pecas, calc) {
 
   for (let apre of fatura.apresentacoes) {
     faturaHTML +=
-      `<li> ${getPeca(pecas, apre).nome}: ` +
+      `<li> ${calc.repo.getPeca(apre).nome}: ` +
       `${formatarMoeda(
-        calc.calcularTotalApresentacao(pecas, apre)
+        calc.calcularTotalApresentacao(apre)
       )} ` +
       `(${apre.audiencia} assentos) </li>\n`;
   }
@@ -136,12 +150,12 @@ function gerarFaturaHTML(fatura, pecas, calc) {
 
   faturaHTML +=
     `<p> Valor total: ${formatarMoeda(
-      calc.calcularTotalFatura(pecas, fatura.apresentacoes)
+      calc.calcularTotalFatura(fatura.apresentacoes)
     )} </p>\n`;
 
   faturaHTML +=
     `<p> Créditos acumulados: ${
-      calc.calcularTotalCreditos(pecas, fatura.apresentacoes)
+      calc.calcularTotalCreditos(fatura.apresentacoes)
     } </p>\n`;
 
   faturaHTML += `</html>`;
@@ -154,19 +168,9 @@ function gerarFaturaHTML(fatura, pecas, calc) {
 // Programa principal
 
 const faturas = JSON.parse(readFileSync('./faturas.json'));
-const pecas = JSON.parse(readFileSync('./pecas.json'));
 
-// Criação do objeto responsável pelos cálculos
-const calc = new ServicoCalculoFatura();
+const calc = new ServicoCalculoFatura(new Repositorio());
 
-const faturaStr = gerarFaturaStr(faturas, pecas, calc);
+const faturaStr = gerarFaturaStr(faturas, calc);
 
 console.log(faturaStr);
-
-
-// Chamada da fatura HTML comentada
-
-/*
-const faturaHTML = gerarFaturaHTML(faturas, pecas, calc);
-console.log(faturaHTML);
-*/
